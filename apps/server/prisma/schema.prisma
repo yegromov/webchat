@@ -21,7 +21,7 @@ model User {
 
 model Room {
   id        String    @id @default(uuid())
-  name      String
+  name      String    @unique
   createdAt DateTime  @default(now())
   messages  Message[]
 
@@ -40,4 +40,5 @@ model Message {
   @@map("messages")
   @@index([roomId])
   @@index([userId])
+  @@index([createdAt])
 }

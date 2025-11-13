@@ -18,7 +18,7 @@ const fastify = Fastify({
 
 // Register plugins
 fastify.register(cors, {
-  origin: config.nodeEnv === 'development' ? '*' : ['http://localhost:3000'],
+  origin: config.nodeEnv === 'development' ? '*' : config.corsOrigin.split(','),
   credentials: true,
 });
 
