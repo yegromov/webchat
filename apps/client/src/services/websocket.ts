@@ -17,11 +17,7 @@ export class WebSocketService {
       return;
     }
 
-    this.ws = new WebSocket(`${WS_URL}?token=${token}`, undefined, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    } as any);
+    this.ws = new WebSocket(`${WS_URL}?token=${token}`);
 
     this.ws.onopen = () => {
       console.log('WebSocket connected');

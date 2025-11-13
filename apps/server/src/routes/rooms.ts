@@ -67,7 +67,7 @@ export async function roomRoutes(fastify: FastifyInstance) {
     });
 
     return {
-      messages: messages.map(m => ({
+      messages: messages.map((m: any) => ({
         id: m.id,
         content: m.content,
         userId: m.userId,

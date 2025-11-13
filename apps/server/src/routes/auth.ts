@@ -23,10 +23,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Generate JWT
+      // Generate JWT with 24-hour expiration
       const token = fastify.jwt.sign({
         userId: user.id,
         username: user.username,
+      }, {
+        expiresIn: '24h',
       });
 
       return {

@@ -5,6 +5,19 @@ import { redis, redisSub, CHANNELS } from '../services/redis';
 import { WSMessageType, WSMessage } from '@webchat/shared';
 import { nanoid } from 'nanoid';
 
+// HTML sanitization helper to prevent XSS attacks
+function sanitizeHtml(text: string): string {
+  const htmlEntities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
+  return text.replace(/[&<>"'/]/g, (char) => htmlEntities[char] || char);
+}
+
 interface AuthenticatedSocket extends WebSocket {
   userId?: string;
   username?: string;
@@ -46,7 +59,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/ws', { websocket: true }, (connection, req) => {
-    const socket = connection.socket as AuthenticatedSocket;
+    const socket = connection.socket as unknown as AuthenticatedSocket;
     socket.rooms = new Set();
 
     // Authenticate WebSocket connection
@@ -134,6 +147,40 @@ export async function websocketRoutes(fastify: FastifyInstance) {
           case WSMessageType.SEND_MESSAGE: {
             const { content, roomId } = message.payload;
 
+            // Validate message content
+            if (!content || typeof content !== 'string') {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message content is required' },
+                })
+              );
+              return;
+            }
+
+            const trimmedContent = content.trim();
+            const sanitizedContent = sanitizeHtml(trimmedContent);
+
+            if (trimmedContent.length === 0) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message cannot be empty' },
+                })
+              );
+              return;
+            }
+
+            if (trimmedContent.length > 5000) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message too long (max 5000 characters)' },
+                })
+              );
+              return;
+            }
+
             if (!socket.rooms.has(roomId)) {
               socket.send(
                 JSON.stringify({
@@ -148,7 +195,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             const dbMessage = await prisma.message.create({
               data: {
                 id: nanoid(),
-                content,
+                content: sanitizedContent,
                 userId: socket.userId!,
                 roomId,
               },

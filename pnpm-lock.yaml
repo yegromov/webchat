@@ -82,7 +82,7 @@ importers:
         specifier: ^8.3.1
         version: 8.3.1
       '@prisma/client':
-        specifier: ^5.7.1
+        specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
       '@webchat/shared':
         specifier: workspace:*

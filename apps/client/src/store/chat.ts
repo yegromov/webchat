@@ -32,7 +32,7 @@ export const useChatStore = create<ChatState>((set) => ({
   setUser: (user) => set({ user }),
   setToken: (token) => set({ token }),
   setRooms: (rooms) => set({ rooms }),
-  setCurrentRoom: (room) => set({ currentRoom, messages: [] }),
+  setCurrentRoom: (room) => set({ currentRoom: room, messages: [] }),
   addMessage: (message) =>
     set((state) => ({
       messages: [...state.messages, message],
