@@ -22,8 +22,11 @@ COPY packages/shared ./packages/shared
 WORKDIR /app/apps/server
 RUN pnpm prisma:generate
 
-# Build the application
+# Build shared package first (required dependency)
 WORKDIR /app
+RUN pnpm --filter @webchat/shared build
+
+# Build the application
 RUN pnpm --filter @webchat/server build
 
 # Production stage
