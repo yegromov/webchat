@@ -5,6 +5,19 @@ import { redis, redisSub, CHANNELS } from '../services/redis';
 import { WSMessageType, WSMessage } from '@webchat/shared';
 import { nanoid } from 'nanoid';
 
+// HTML sanitization helper to prevent XSS attacks
+function sanitizeHtml(text: string): string {
+  const htmlEntities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
+  return text.replace(/[&<>"'/]/g, (char) => htmlEntities[char] || char);
+}
+
 interface AuthenticatedSocket extends WebSocket {
   userId?: string;
   username?: string;
@@ -46,7 +59,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/ws', { websocket: true }, (connection, req) => {
-    const socket = connection.socket as AuthenticatedSocket;
+    const socket = connection.socket as unknown as AuthenticatedSocket;
     socket.rooms = new Set();
 
     // Authenticate WebSocket connection
@@ -74,23 +87,50 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         switch (message.type) {
           case WSMessageType.JOIN_ROOM: {
             const { roomId } = message.payload;
-            socket.rooms.add(roomId);
 
-            // Publish user joined event
-            await redis.publish(
-              CHANNELS.USER_JOINED,
-              JSON.stringify({
-                roomId,
-                wsMessage: {
-                  type: WSMessageType.USER_JOINED,
-                  payload: {
-                    userId: socket.userId,
-                    username: socket.username,
-                    roomId,
+            try {
+              // Verify room exists
+              const room = await prisma.room.findUnique({
+                where: { id: roomId },
+              });
+
+              if (!room) {
+                socket.send(
+                  JSON.stringify({
+                    type: WSMessageType.ERROR,
+                    payload: { message: 'Room not found' },
+                  })
+                );
+                return;
+              }
+
+              socket.rooms.add(roomId);
+
+              // Publish user joined event
+              await redis.publish(
+                CHANNELS.USER_JOINED,
+                JSON.stringify({
+                  roomId,
+                  wsMessage: {
+                    type: WSMessageType.USER_JOINED,
+                    payload: {
+                      userId: socket.userId,
+                      username: socket.username,
+                      roomId,
+                    },
                   },
-                },
-              })
-            );
+                })
+              );
+            } catch (error) {
+              console.error('Error joining room:', error);
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Failed to join room' },
+                })
+              );
+              return;
+            }
 
             // Send current room users to the joining user
             const roomUsers: Array<{ id: string; username: string }> = [];
@@ -113,26 +153,65 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             const { roomId } = message.payload;
             socket.rooms.delete(roomId);
 
-            // Publish user left event
-            await redis.publish(
-              CHANNELS.USER_LEFT,
-              JSON.stringify({
-                roomId,
-                wsMessage: {
-                  type: WSMessageType.USER_LEFT,
-                  payload: {
-                    userId: socket.userId,
-                    username: socket.username,
-                    roomId,
+            try {
+              // Publish user left event
+              await redis.publish(
+                CHANNELS.USER_LEFT,
+                JSON.stringify({
+                  roomId,
+                  wsMessage: {
+                    type: WSMessageType.USER_LEFT,
+                    payload: {
+                      userId: socket.userId,
+                      username: socket.username,
+                      roomId,
+                    },
                   },
-                },
-              })
-            );
+                })
+              );
+            } catch (error) {
+              console.error('Error publishing leave event:', error);
+              // Don't send error to client as they've already left
+            }
             break;
           }
 
           case WSMessageType.SEND_MESSAGE: {
             const { content, roomId } = message.payload;
+
+            // Validate message content
+            if (!content || typeof content !== 'string') {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message content is required' },
+                })
+              );
+              return;
+            }
+
+            const trimmedContent = content.trim();
+            const sanitizedContent = sanitizeHtml(trimmedContent);
+
+            if (trimmedContent.length === 0) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message cannot be empty' },
+                })
+              );
+              return;
+            }
+
+            if (trimmedContent.length > 5000) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message too long (max 5000 characters)' },
+                })
+              );
+              return;
+            }
 
             if (!socket.rooms.has(roomId)) {
               socket.send(
@@ -144,43 +223,53 @@ export async function websocketRoutes(fastify: FastifyInstance) {
               return;
             }
 
-            // Save message to database
-            const dbMessage = await prisma.message.create({
-              data: {
-                id: nanoid(),
-                content,
-                userId: socket.userId!,
-                roomId,
-              },
-              include: {
-                user: {
-                  select: {
-                    username: true,
-                  },
+            try {
+              // Save message to database
+              const dbMessage = await prisma.message.create({
+                data: {
+                  id: nanoid(),
+                  content: sanitizedContent,
+                  userId: socket.userId!,
+                  roomId,
                 },
-              },
-            });
-
-            // Publish message to Redis
-            await redis.publish(
-              CHANNELS.ROOM_MESSAGE,
-              JSON.stringify({
-                roomId,
-                wsMessage: {
-                  type: WSMessageType.MESSAGE_RECEIVED,
-                  payload: {
-                    message: {
-                      id: dbMessage.id,
-                      content: dbMessage.content,
-                      userId: dbMessage.userId,
-                      username: dbMessage.user.username,
-                      roomId: dbMessage.roomId,
-                      createdAt: dbMessage.createdAt,
+                include: {
+                  user: {
+                    select: {
+                      username: true,
                     },
                   },
                 },
-              })
-            );
+              });
+
+              // Publish message to Redis
+              await redis.publish(
+                CHANNELS.ROOM_MESSAGE,
+                JSON.stringify({
+                  roomId,
+                  wsMessage: {
+                    type: WSMessageType.MESSAGE_RECEIVED,
+                    payload: {
+                      message: {
+                        id: dbMessage.id,
+                        content: dbMessage.content,
+                        userId: dbMessage.userId,
+                        username: dbMessage.user.username,
+                        roomId: dbMessage.roomId,
+                        createdAt: dbMessage.createdAt,
+                      },
+                    },
+                  },
+                })
+              );
+            } catch (error) {
+              console.error('Error saving/publishing message:', error);
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Failed to send message' },
+                })
+              );
+            }
             break;
           }
 

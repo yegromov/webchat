@@ -23,10 +23,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Generate JWT
+      // Generate JWT with 24-hour expiration
       const token = fastify.jwt.sign({
         userId: user.id,
         username: user.username,
+      }, {
+        expiresIn: '24h',
       });
 
       return {
@@ -38,7 +40,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         },
       };
     } catch (error: any) {
-      reply.code(400).send({ error: error.message || 'Invalid request' });
+      console.error('Login error:', error);
+      if (error.name === 'ZodError') {
+        reply.code(400).send({ error: 'Invalid username format' });
+      } else {
+        reply.code(500).send({ error: 'Internal server error' });
+      }
     }
   });
 
@@ -46,23 +53,28 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/auth/verify', {
     onRequest: [fastify.authenticate],
   }, async (request, reply) => {
-    const { userId, username } = request.user as any;
-    
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    try {
+      const { userId, username } = request.user as any;
 
-    if (!user) {
-      reply.code(404).send({ error: 'User not found' });
-      return;
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        reply.code(404).send({ error: 'User not found' });
+        return;
+      }
+
+      return {
+        user: {
+          id: user.id,
+          username: user.username,
+          createdAt: user.createdAt,
+        },
+      };
+    } catch (error) {
+      console.error('Token verification error:', error);
+      reply.code(500).send({ error: 'Internal server error' });
     }
-
-    return {
-      user: {
-        id: user.id,
-        username: user.username,
-        createdAt: user.createdAt,
-      },
-    };
   });
 }
