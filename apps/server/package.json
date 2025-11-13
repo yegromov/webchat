@@ -2,6 +2,7 @@
   "name": "@webchat/server",
   "version": "1.0.0",
   "description": "Fastify server for webchat",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

@@ -1,14 +1,14 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
-import websocket from '@fastify/websocket';
-import { config } from './config';
-import { authenticate } from './middleware/auth';
-import { authRoutes } from './routes/auth';
-import { roomRoutes } from './routes/rooms';
-import { websocketRoutes } from './routes/websocket';
-import { prisma } from './services/database';
-import { redis, redisSub } from './services/redis';
+import websocketPlugin from '@fastify/websocket';
+import { config } from './config/index.js';
+import { authenticate } from './middleware/auth.js';
+import { authRoutes } from './routes/auth.js';
+import { roomRoutes } from './routes/rooms.js';
+import { websocketRoutes } from './routes/websocket.js';
+import { prisma } from './services/database.js';
+import { redis, redisSub } from './services/redis.js';
 
 const fastify = Fastify({
   logger: {
@@ -26,7 +26,7 @@ fastify.register(jwt, {
   secret: config.jwtSecret,
 });
 
-fastify.register(websocket);
+fastify.register(websocketPlugin);
 
 // Add authenticate decorator
 fastify.decorate('authenticate', authenticate);
@@ -44,7 +44,7 @@ fastify.register(websocketRoutes);
 // Graceful shutdown
 const shutdown = async () => {
   console.log('Shutting down gracefully...');
-  
+
   try {
     await fastify.close();
     await prisma.$disconnect();

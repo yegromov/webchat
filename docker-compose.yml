@@ -57,7 +57,7 @@ services:
     networks:
       - webchat-network
     restart: unless-stopped
-    command: sh -c "pnpm prisma:migrate && pnpm start"
+    command: sh -c "cd /app/apps/server && npx prisma db push && pnpm start"
 
   client:
     build:

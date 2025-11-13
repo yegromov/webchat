@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { prisma } from '../services/database';
+import { FastifyPluginAsync } from 'fastify';
+import { prisma } from '../services/database.js';
 import { loginSchema } from '@webchat/shared';
 import { nanoid } from 'nanoid';
 

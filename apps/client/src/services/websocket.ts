@@ -12,7 +12,7 @@ export class WebSocketService {
 
   connect(token: string) {
     this.token = token;
-    
+
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;
     }

@@ -1,8 +1,8 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:25-alpine AS builder
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm using npm
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
 

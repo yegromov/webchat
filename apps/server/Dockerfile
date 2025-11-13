@@ -1,8 +1,8 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:25-alpine AS builder
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm using npm
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
 
@@ -19,8 +19,7 @@ COPY apps/server ./apps/server
 COPY packages/shared ./packages/shared
 
 # Generate Prisma client
-WORKDIR /app/apps/server
-RUN pnpm prisma:generate
+RUN pnpm --filter @webchat/server prisma:generate
 
 # Build shared package first (required dependency)
 WORKDIR /app
@@ -30,10 +29,13 @@ RUN pnpm --filter @webchat/shared build
 RUN pnpm --filter @webchat/server build
 
 # Production stage
-FROM node:18-alpine AS production
+FROM node:25-alpine AS production
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl
+
+# Install pnpm using npm
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
 
@@ -42,14 +44,20 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/server/package.json ./apps/server/
 COPY packages/shared/package.json ./packages/shared/
 
-# Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+# Set CI environment variable for pnpm
+ENV CI=true
 
-# Copy built files and source from builder
+# Copy prisma schema before installing dependencies
+COPY apps/server/prisma ./apps/server/prisma
+
+# Install all dependencies (we need to keep prisma CLI for migrations)
+RUN pnpm install --frozen-lockfile
+
+# Generate Prisma client
+RUN pnpm --filter @webchat/server prisma:generate
+
+# Copy built files from builder
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
-COPY --from=builder /app/apps/server/prisma ./apps/server/prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 WORKDIR /app/apps/server

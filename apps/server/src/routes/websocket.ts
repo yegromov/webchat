@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
-import { prisma } from '../services/database';
-import { redis, redisSub, CHANNELS } from '../services/redis';
+import { prisma } from '../services/database.js';
+import { redis, redisSub, CHANNELS } from '../services/redis.js';
 import { WSMessageType, WSMessage } from '@webchat/shared';
 import { nanoid } from 'nanoid';
 
@@ -12,10 +12,8 @@ function sanitizeHtml(text: string): string {
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;',
   };
-  return text.replace(/[&<>"'/]/g, (char) => htmlEntities[char] || char);
+  return text.replace(/[&<>"]/g, (char) => htmlEntities[char] || char);
 }
 
 interface AuthenticatedSocket extends WebSocket {
@@ -63,8 +61,15 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     socket.rooms = new Set();
 
     // Authenticate WebSocket connection
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    
+    // Try to get token from Authorization header or query parameter
+    let token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      // Fallback to query parameter
+      const query = req.query as { token?: string };
+      token = query.token;
+    }
+
     if (!token) {
       socket.close(4001, 'Unauthorized');
       return;
