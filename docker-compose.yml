@@ -17,6 +17,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - webchat-network
 
   redis:
     image: redis:7-alpine
@@ -30,7 +32,53 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - webchat-network
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: webchat-server
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/webchat?schema=public"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "your-secret-key-change-in-production"
+      PORT: 3001
+      NODE_ENV: production
+      CORS_ORIGIN: "http://localhost:3000,http://localhost"
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - webchat-network
+    restart: unless-stopped
+    command: sh -c "pnpm prisma:migrate && pnpm start"
+
+  client:
+    build:
+      context: .
+      dockerfile: apps/client/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3001
+        VITE_WS_URL: ws://localhost:3001/ws
+    container_name: webchat-client
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    networks:
+      - webchat-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  webchat-network:
+    driver: bridge
