@@ -24,8 +24,11 @@ ARG VITE_WS_URL=ws://localhost:3001/ws
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_WS_URL=$VITE_WS_URL
 
-# Build the application
+# Build shared package first (required dependency)
 WORKDIR /app
+RUN pnpm --filter @webchat/shared build
+
+# Build the application
 RUN pnpm --filter @webchat/client build
 
 # Production stage - serve with nginx
