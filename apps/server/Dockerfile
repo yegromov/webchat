@@ -48,7 +48,8 @@ RUN pnpm install --frozen-lockfile --prod
 # Copy built files and source from builder
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
 COPY --from=builder /app/apps/server/prisma ./apps/server/prisma
-COPY --from=builder /app/apps/server/node_modules/.prisma ./apps/server/node_modules/.prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 WORKDIR /app/apps/server
