@@ -12,8 +12,16 @@ function sanitizeHtml(text: string): string {
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
   };
-  return text.replace(/[&<>"]/g, (char) => htmlEntities[char] || char);
+  return text.replace(/[&<>"'\/]/g, (char) => htmlEntities[char] || char);
+}
+
+// UUID validation helper to prevent injection attacks
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
 }
 
 interface AuthenticatedSocket extends WebSocket {
@@ -93,22 +101,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/ws', { websocket: true }, (connection, req) => {
+  fastify.get('/ws', { websocket: true }, async (connection, req) => {
     const socket = connection.socket as unknown as AuthenticatedSocket;
     socket.rooms = new Set();
 
     // Authenticate WebSocket connection
-    // Try to get token from Authorization header or query parameter
+    // Security: Only accept token from Authorization header to prevent token exposure in logs
+    // Tokens in URLs are logged in browser history, server logs, and proxies
     let token = req.headers.authorization?.replace('Bearer ', '');
 
     if (!token) {
-      // Fallback to query parameter
-      const query = req.query as { token?: string };
-      token = query.token;
-    }
-
-    if (!token) {
-      socket.close(4001, 'Unauthorized');
+      socket.close(4001, 'Unauthorized: Token must be provided in Authorization header');
       return;
     }
 
@@ -144,6 +147,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         switch (message.type) {
           case WSMessageType.JOIN_ROOM: {
             const { roomId } = message.payload;
+
+            // Security: Validate UUID format to prevent injection attacks
+            if (!roomId || typeof roomId !== 'string' || !isValidUUID(roomId)) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Invalid room ID format' },
+                })
+              );
+              return;
+            }
 
             try {
               // Verify room exists
@@ -235,6 +249,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
           case WSMessageType.SEND_MESSAGE: {
             const { content, roomId } = message.payload;
+
+            // Security: Validate UUID format to prevent injection attacks
+            if (!roomId || typeof roomId !== 'string' || !isValidUUID(roomId)) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Invalid room ID format' },
+                })
+              );
+              return;
+            }
 
             // Validate message content
             if (!content || typeof content !== 'string') {
@@ -332,6 +357,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
           case WSMessageType.SEND_DM: {
             const { receiverId, content } = message.payload;
+
+            // Security: Validate UUID format to prevent injection attacks
+            if (!receiverId || typeof receiverId !== 'string' || !isValidUUID(receiverId)) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Invalid user ID format' },
+                })
+              );
+              return;
+            }
 
             // Validate message content
             if (!content || typeof content !== 'string') {
