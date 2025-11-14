@@ -100,11 +100,21 @@ export interface AuthTokenPayload {
   username: string;
 }
 
+export interface CheckUsernameRequest {
+  username: string;
+}
+
+export interface CheckUsernameResponse {
+  available: boolean;
+  registered?: boolean; // Only present if available is false
+}
+
 export interface LoginRequest {
   username: string;
   age: number;
   sex: string;
   country: string;
+  password?: string; // Optional for registration or required for existing registered users
 }
 
 export interface LoginResponse {

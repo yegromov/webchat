@@ -1,13 +1,30 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const api = {
-  async login(username: string, age: number, sex: string, country: string) {
+  async checkUsername(username: string) {
+    const response = await fetch(`${API_URL}/api/auth/check-username`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to check username');
+    }
+
+    return response.json();
+  },
+
+  async login(username: string, age: number, sex: string, country: string, password?: string) {
     const response = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ username, age, sex, country }),
+      body: JSON.stringify({ username, age, sex, country, password }),
     });
 
     if (!response.ok) {

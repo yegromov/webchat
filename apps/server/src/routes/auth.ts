@@ -1,36 +1,91 @@
 import { FastifyInstance } from 'fastify';
 import { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../services/database.js';
-import { loginSchema } from '@webchat/shared';
+import { loginSchema, checkUsernameSchema } from '@webchat/shared';
 import { nanoid } from 'nanoid';
+import bcrypt from 'bcrypt';
 
 export async function authRoutes(fastify: FastifyInstance) {
-  // Login/Register (anonymous users)
+  // Check username availability
+  fastify.post('/auth/check-username', async (request, reply) => {
+    try {
+      const { username } = checkUsernameSchema.parse(request.body);
+
+      const user = await prisma.user.findUnique({
+        where: { username },
+        select: { password: true },
+      });
+
+      if (!user) {
+        return { available: true };
+      }
+
+      return {
+        available: false,
+        registered: !!user.password,
+      };
+    } catch (error: any) {
+      console.error('Check username error:', error);
+      if (error.name === 'ZodError') {
+        reply.code(400).send({ error: 'Invalid username format', details: error.errors });
+      } else {
+        reply.code(500).send({ error: 'Internal server error' });
+      }
+    }
+  });
+
+  // Login/Register
   fastify.post('/auth/login', async (request, reply) => {
     try {
-      const { username, age, sex, country } = loginSchema.parse(request.body);
+      const { username, age, sex, country, password } = loginSchema.parse(request.body);
 
       // Check if user exists
-      let user = await prisma.user.findUnique({
+      const existingUser = await prisma.user.findUnique({
         where: { username },
       });
 
-      if (user) {
-        // Username already exists
-        reply.code(409).send({ error: 'Username already exists' });
-        return;
-      }
+      let user;
 
-      // Create new user
-      user = await prisma.user.create({
-        data: {
-          id: nanoid(),
-          username,
-          age,
-          sex,
-          country,
-        },
-      });
+      if (existingUser) {
+        // User exists
+        if (existingUser.password) {
+          // Registered user - password required
+          if (!password) {
+            reply.code(401).send({ error: 'Password required for this username' });
+            return;
+          }
+
+          // Verify password
+          const isValidPassword = await bcrypt.compare(password, existingUser.password);
+          if (!isValidPassword) {
+            reply.code(401).send({ error: 'Invalid password' });
+            return;
+          }
+
+          user = existingUser;
+        } else {
+          // Anonymous user - username taken
+          reply.code(409).send({ error: 'Username is already taken by an anonymous user' });
+          return;
+        }
+      } else {
+        // New user - create account
+        let hashedPassword = null;
+        if (password) {
+          hashedPassword = await bcrypt.hash(password, 10);
+        }
+
+        user = await prisma.user.create({
+          data: {
+            id: nanoid(),
+            username,
+            password: hashedPassword,
+            age,
+            sex,
+            country,
+          },
+        });
+      }
 
       // Generate JWT with 24-hour expiration
       const token = fastify.jwt.sign({
