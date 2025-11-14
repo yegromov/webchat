@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useChatStore } from '../store/chat';
 import { Message } from '@webchat/shared';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 export function MessageList() {
   const { messages, user } = useChatStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -43,7 +45,20 @@ export function MessageList() {
                     {message.username}
                   </div>
                 )}
-                <div className="break-words">{message.content}</div>
+                {message.imageUrl && (
+                  <div className="mb-2">
+                    <img
+                      src={`${API_URL}${message.imageUrl}`}
+                      alt="Attachment"
+                      className="rounded-lg max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => window.open(`${API_URL}${message.imageUrl}`, '_blank')}
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+                {message.content && (
+                  <div className="break-words">{message.content}</div>
+                )}
                 <div
                   className={`text-xs mt-1 ${
                     isOwnMessage ? 'text-blue-200' : 'text-gray-500'

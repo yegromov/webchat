@@ -39,6 +39,7 @@ model Room {
 model Message {
   id        String   @id @default(uuid())
   content   String
+  imageUrl  String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   roomId    String
@@ -54,6 +55,7 @@ model Message {
 model DirectMessage {
   id         String   @id @default(uuid())
   content    String
+  imageUrl   String?
   senderId   String
   sender     User     @relation("SentDMs", fields: [senderId], references: [id], onDelete: Cascade)
   receiverId String

@@ -17,6 +17,7 @@ export interface UserCredentials {
 export interface Message {
   id: string;
   content: string;
+  imageUrl?: string | null;
   userId: string;
   username: string;
   roomId: string;
@@ -32,6 +33,7 @@ export interface CreateMessageDto {
 export interface DirectMessage {
   id: string;
   content: string;
+  imageUrl?: string | null;
   senderId: string;
   senderUsername: string;
   receiverId: string;
@@ -89,6 +91,7 @@ export interface LeaveRoomPayload {
 export interface SendMessagePayload {
   content: string;
   roomId: string;
+  imageUrl?: string;
 }
 
 export interface MessageReceivedPayload {
@@ -115,6 +118,7 @@ export interface RoomUsersPayload {
 export interface SendDMPayload {
   receiverId: string;
   content: string;
+  imageUrl?: string;
 }
 
 export interface DMReceivedPayload {

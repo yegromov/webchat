@@ -248,7 +248,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
           }
 
           case WSMessageType.SEND_MESSAGE: {
-            const { content, roomId } = message.payload;
+            const { content, roomId, imageUrl } = message.payload;
 
             // Security: Validate UUID format to prevent injection attacks
             if (!roomId || typeof roomId !== 'string' || !isValidUUID(roomId)) {
@@ -261,35 +261,40 @@ export async function websocketRoutes(fastify: FastifyInstance) {
               return;
             }
 
-            // Validate message content
-            if (!content || typeof content !== 'string') {
+            // Validate message has content or image
+            if ((!content || typeof content !== 'string' || content.trim().length === 0) && !imageUrl) {
               socket.send(
                 JSON.stringify({
                   type: WSMessageType.ERROR,
-                  payload: { message: 'Message content is required' },
+                  payload: { message: 'Message must have content or an image' },
                 })
               );
               return;
             }
 
-            const trimmedContent = content.trim();
-            const sanitizedContent = sanitizeHtml(trimmedContent);
+            // Sanitize content if provided
+            let sanitizedContent = '';
+            if (content && typeof content === 'string') {
+              const trimmedContent = content.trim();
+              sanitizedContent = sanitizeHtml(trimmedContent);
 
-            if (trimmedContent.length === 0) {
-              socket.send(
-                JSON.stringify({
-                  type: WSMessageType.ERROR,
-                  payload: { message: 'Message cannot be empty' },
-                })
-              );
-              return;
+              if (trimmedContent.length > 5000) {
+                socket.send(
+                  JSON.stringify({
+                    type: WSMessageType.ERROR,
+                    payload: { message: 'Message too long (max 5000 characters)' },
+                  })
+                );
+                return;
+              }
             }
 
-            if (trimmedContent.length > 5000) {
+            // Validate imageUrl if provided
+            if (imageUrl && (typeof imageUrl !== 'string' || !imageUrl.startsWith('/uploads/'))) {
               socket.send(
                 JSON.stringify({
                   type: WSMessageType.ERROR,
-                  payload: { message: 'Message too long (max 5000 characters)' },
+                  payload: { message: 'Invalid image URL' },
                 })
               );
               return;
@@ -310,7 +315,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
               const dbMessage = await prisma.message.create({
                 data: {
                   id: nanoid(),
-                  content: sanitizedContent,
+                  content: sanitizedContent || '',
+                  imageUrl: imageUrl || null,
                   userId: socket.userId!,
                   roomId,
                 },
@@ -334,6 +340,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                       message: {
                         id: dbMessage.id,
                         content: dbMessage.content,
+                        imageUrl: dbMessage.imageUrl,
                         userId: dbMessage.userId,
                         username: dbMessage.user.username,
                         roomId: dbMessage.roomId,
@@ -356,7 +363,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
           }
 
           case WSMessageType.SEND_DM: {
-            const { receiverId, content } = message.payload;
+            const { receiverId, content, imageUrl } = message.payload;
 
             // Security: Validate UUID format to prevent injection attacks
             if (!receiverId || typeof receiverId !== 'string' || !isValidUUID(receiverId)) {
@@ -369,35 +376,40 @@ export async function websocketRoutes(fastify: FastifyInstance) {
               return;
             }
 
-            // Validate message content
-            if (!content || typeof content !== 'string') {
+            // Validate message has content or image
+            if ((!content || typeof content !== 'string' || content.trim().length === 0) && !imageUrl) {
               socket.send(
                 JSON.stringify({
                   type: WSMessageType.ERROR,
-                  payload: { message: 'Message content is required' },
+                  payload: { message: 'Message must have content or an image' },
                 })
               );
               return;
             }
 
-            const trimmedContent = content.trim();
-            const sanitizedContent = sanitizeHtml(trimmedContent);
+            // Sanitize content if provided
+            let sanitizedContent = '';
+            if (content && typeof content === 'string') {
+              const trimmedContent = content.trim();
+              sanitizedContent = sanitizeHtml(trimmedContent);
 
-            if (trimmedContent.length === 0) {
-              socket.send(
-                JSON.stringify({
-                  type: WSMessageType.ERROR,
-                  payload: { message: 'Message cannot be empty' },
-                })
-              );
-              return;
+              if (trimmedContent.length > 1000) {
+                socket.send(
+                  JSON.stringify({
+                    type: WSMessageType.ERROR,
+                    payload: { message: 'Message too long (max 1000 characters)' },
+                  })
+                );
+                return;
+              }
             }
 
-            if (trimmedContent.length > 1000) {
+            // Validate imageUrl if provided
+            if (imageUrl && (typeof imageUrl !== 'string' || !imageUrl.startsWith('/uploads/'))) {
               socket.send(
                 JSON.stringify({
                   type: WSMessageType.ERROR,
-                  payload: { message: 'Message too long (max 1000 characters)' },
+                  payload: { message: 'Invalid image URL' },
                 })
               );
               return;
@@ -426,7 +438,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
               const dm = await prisma.directMessage.create({
                 data: {
                   id: nanoid(),
-                  content: sanitizedContent,
+                  content: sanitizedContent || '',
+                  imageUrl: imageUrl || null,
                   senderId: socket.userId!,
                   receiverId,
                 },
@@ -447,6 +460,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
               const dmPayload = {
                 id: dm.id,
                 content: dm.content,
+                imageUrl: dm.imageUrl,
                 senderId: dm.senderId,
                 senderUsername: dm.sender.username,
                 receiverId: dm.receiverId,
