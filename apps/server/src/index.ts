@@ -2,6 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import websocketPlugin from '@fastify/websocket';
+import rateLimit from '@fastify/rate-limit';
+import helmet from '@fastify/helmet';
 import { config } from './config/index.js';
 import { authenticate } from './middleware/auth.js';
 import { authRoutes } from './routes/auth.js';
@@ -17,6 +19,50 @@ const fastify = Fastify({
   },
 });
 
+// Security: Add security headers to protect against common vulnerabilities
+fastify.register(helmet, {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", 'ws:', 'wss:'],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: config.nodeEnv === 'production',
+  crossOriginOpenerPolicy: { policy: 'same-origin' },
+  crossOriginResourcePolicy: { policy: 'same-origin' },
+  dnsPrefetchControl: { allow: false },
+  frameguard: { action: 'deny' },
+  hidePoweredBy: true,
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  ieNoOpen: true,
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xssFilter: true,
+});
+
+// Security: Register rate limiting to prevent brute force and DoS attacks
+fastify.register(rateLimit, {
+  max: 100, // Maximum 100 requests
+  timeWindow: '1 minute', // Per 1 minute window
+  cache: 10000, // Cache up to 10000 different IPs
+  allowList: config.nodeEnv === 'development' ? ['127.0.0.1'] : [], // Allow localhost in dev
+  redis: redis, // Use Redis for distributed rate limiting across instances
+  nameSpace: 'rate-limit:',
+  continueExceeding: true,
+  skipOnError: false, // Don't skip rate limiting on errors
+});
+
 // Register plugins
 fastify.register(cors, {
   origin: config.nodeEnv === 'development' ? '*' : config.corsOrigin.split(','),
@@ -25,6 +71,9 @@ fastify.register(cors, {
 
 fastify.register(jwt, {
   secret: config.jwtSecret,
+  sign: {
+    expiresIn: '8h', // Reduced from 24h to 8h for better security
+  },
 });
 
 fastify.register(websocketPlugin);
