@@ -9,4 +9,6 @@ export const CHANNELS = {
   ROOM_MESSAGE: 'room:message',
   USER_JOINED: 'user:joined',
   USER_LEFT: 'user:left',
+  DIRECT_MESSAGE: 'direct:message',
+  ONLINE_USERS: 'online:users',
 };

@@ -20,3 +20,8 @@ export const createMessageSchema = z.object({
 export const joinRoomSchema = z.object({
   roomId: z.string().uuid(),
 });
+
+export const sendDMSchema = z.object({
+  receiverId: z.string().uuid(),
+  content: z.string().min(1).max(1000),
+});

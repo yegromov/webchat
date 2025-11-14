@@ -28,6 +28,25 @@ export interface CreateMessageDto {
   roomId: string;
 }
 
+// Direct Message types
+export interface DirectMessage {
+  id: string;
+  content: string;
+  senderId: string;
+  senderUsername: string;
+  receiverId: string;
+  receiverUsername: string;
+  createdAt: Date;
+  read: boolean;
+}
+
+export interface OnlineUser {
+  id: string;
+  username: string;
+  age: number;
+  sex: string;
+}
+
 // Room types
 export interface Room {
   id: string;
@@ -44,6 +63,9 @@ export enum WSMessageType {
   USER_JOINED = 'USER_JOINED',
   USER_LEFT = 'USER_LEFT',
   ROOM_USERS = 'ROOM_USERS',
+  SEND_DM = 'SEND_DM',
+  DM_RECEIVED = 'DM_RECEIVED',
+  ONLINE_USERS = 'ONLINE_USERS',
   ERROR = 'ERROR',
   // Future WebRTC support
   WEBRTC_OFFER = 'WEBRTC_OFFER',
@@ -88,6 +110,19 @@ export interface UserLeftPayload {
 export interface RoomUsersPayload {
   roomId: string;
   users: Array<{ id: string; username: string }>;
+}
+
+export interface SendDMPayload {
+  receiverId: string;
+  content: string;
+}
+
+export interface DMReceivedPayload {
+  message: DirectMessage;
+}
+
+export interface OnlineUsersPayload {
+  users: OnlineUser[];
 }
 
 export interface ErrorPayload {

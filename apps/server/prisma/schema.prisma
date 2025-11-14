@@ -11,14 +11,18 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  username  String    @unique
-  password  String?
-  age       Int
-  sex       String
-  country   String
-  createdAt DateTime  @default(now())
-  messages  Message[]
+  id               String          @id @default(uuid())
+  username         String          @unique
+  password         String?
+  age              Int
+  sex              String
+  country          String
+  createdAt        DateTime        @default(now())
+  messages         Message[]
+  sentDMs          DirectMessage[] @relation("SentDMs")
+  receivedDMs      DirectMessage[] @relation("ReceivedDMs")
+  blockedUsers     BlockedUser[]   @relation("Blocker")
+  blockedByUsers   BlockedUser[]   @relation("Blocked")
 
   @@map("users")
 }
@@ -45,4 +49,34 @@ model Message {
   @@index([roomId])
   @@index([userId])
   @@index([createdAt])
+}
+
+model DirectMessage {
+  id         String   @id @default(uuid())
+  content    String
+  senderId   String
+  sender     User     @relation("SentDMs", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedDMs", fields: [receiverId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  read       Boolean  @default(false)
+
+  @@map("direct_messages")
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+
+model BlockedUser {
+  id         String   @id @default(uuid())
+  blockerId  String
+  blocker    User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId  String
+  blocked    User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@map("blocked_users")
+  @@index([blockerId])
+  @@index([blockedId])
 }
