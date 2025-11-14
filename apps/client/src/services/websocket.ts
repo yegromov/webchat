@@ -95,17 +95,17 @@ export class WebSocketService {
     });
   }
 
-  sendMessage(content: string, roomId: string) {
+  sendMessage(content: string, roomId: string, imageUrl?: string) {
     this.send({
       type: WSMessageType.SEND_MESSAGE,
-      payload: { content, roomId },
+      payload: { content, roomId, imageUrl },
     });
   }
 
-  sendDM(receiverId: string, content: string) {
+  sendDM(receiverId: string, content: string, imageUrl?: string) {
     this.send({
       type: WSMessageType.SEND_DM,
-      payload: { receiverId, content },
+      payload: { receiverId, content, imageUrl },
     });
   }
 }

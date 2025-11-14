@@ -4,14 +4,22 @@ import jwt from '@fastify/jwt';
 import websocketPlugin from '@fastify/websocket';
 import rateLimit from '@fastify/rate-limit';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from './config/index.js';
 import { authenticate } from './middleware/auth.js';
 import { authRoutes } from './routes/auth.js';
 import { roomRoutes } from './routes/rooms.js';
 import { dmRoutes } from './routes/dms.js';
+import { uploadRoutes } from './routes/upload.js';
 import { websocketRoutes } from './routes/websocket.js';
 import { prisma } from './services/database.js';
 import { redis, redisSub } from './services/redis.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const fastify = Fastify({
   logger: {
@@ -78,6 +86,20 @@ fastify.register(jwt, {
 
 fastify.register(websocketPlugin);
 
+// Register multipart for file uploads
+fastify.register(multipart, {
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max file size
+  },
+});
+
+// Register static file serving for uploads
+fastify.register(fastifyStatic, {
+  root: path.join(__dirname, '../uploads'),
+  prefix: '/uploads/',
+  decorateReply: false,
+});
+
 // Add authenticate decorator
 fastify.decorate('authenticate', authenticate);
 
@@ -90,6 +112,7 @@ fastify.get('/health', async () => {
 fastify.register(authRoutes, { prefix: '/api' });
 fastify.register(roomRoutes, { prefix: '/api' });
 fastify.register(dmRoutes, { prefix: '/api' });
+fastify.register(uploadRoutes, { prefix: '/api' });
 fastify.register(websocketRoutes);
 
 // Graceful shutdown
