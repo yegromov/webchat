@@ -7,18 +7,21 @@ import { RoomList } from './RoomList';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { Header } from './Header';
+import { OnlineUsers } from './OnlineUsers';
+import { DirectMessages } from './DirectMessages';
 
 export function Chat() {
   const {
     token,
     currentRoom,
+    currentDMUser,
     setRooms,
     setCurrentRoom,
     addMessage,
     setMessages,
     setOnlineUsers,
-    addOnlineUser,
-    removeOnlineUser,
+    addDirectMessage,
+    setBlockedUsers,
   } = useChatStore();
 
   useEffect(() => {
@@ -32,16 +35,12 @@ export function Chat() {
       addMessage(message);
     });
 
-    wsService.on(WSMessageType.USER_JOINED, ({ userId, username }) => {
-      addOnlineUser({ id: userId, username });
-    });
-
-    wsService.on(WSMessageType.USER_LEFT, ({ userId }) => {
-      removeOnlineUser(userId);
-    });
-
-    wsService.on(WSMessageType.ROOM_USERS, ({ users }) => {
+    wsService.on(WSMessageType.ONLINE_USERS, ({ users }) => {
       setOnlineUsers(users);
+    });
+
+    wsService.on(WSMessageType.DM_RECEIVED, ({ message }) => {
+      addDirectMessage(message);
     });
 
     wsService.on(WSMessageType.ERROR, ({ message }) => {
@@ -55,6 +54,11 @@ export function Chat() {
       if (rooms.length > 0 && !currentRoom) {
         handleRoomSelect(rooms[0].id);
       }
+    });
+
+    // Fetch blocked users
+    api.getBlockedUsers(token).then(({ blockedUsers }) => {
+      setBlockedUsers(blockedUsers.map((u: any) => u.id));
     });
 
     return () => {
@@ -93,10 +97,15 @@ export function Chat() {
       <Header />
       <div className="flex-1 flex overflow-hidden">
         <RoomList onRoomSelect={handleRoomSelect} />
-        <div className="flex-1 flex flex-col">
-          <MessageList />
-          <MessageInput />
-        </div>
+        {currentDMUser ? (
+          <DirectMessages />
+        ) : (
+          <div className="flex-1 flex flex-col">
+            <MessageList />
+            <MessageInput />
+          </div>
+        )}
+        <OnlineUsers />
       </div>
     </div>
   );

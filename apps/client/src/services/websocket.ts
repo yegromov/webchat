@@ -101,6 +101,13 @@ export class WebSocketService {
       payload: { content, roomId },
     });
   }
+
+  sendDM(receiverId: string, content: string) {
+    this.send({
+      type: WSMessageType.SEND_DM,
+      payload: { receiverId, content },
+    });
+  }
 }
 
 export const wsService = new WebSocketService();
