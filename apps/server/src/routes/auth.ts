@@ -8,21 +8,29 @@ export async function authRoutes(fastify: FastifyInstance) {
   // Login/Register (anonymous users)
   fastify.post('/auth/login', async (request, reply) => {
     try {
-      const { username } = loginSchema.parse(request.body);
+      const { username, age, sex, country } = loginSchema.parse(request.body);
 
-      // Check if user exists, create if not
+      // Check if user exists
       let user = await prisma.user.findUnique({
         where: { username },
       });
 
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            id: nanoid(),
-            username,
-          },
-        });
+      if (user) {
+        // Username already exists
+        reply.code(409).send({ error: 'Username already exists' });
+        return;
       }
+
+      // Create new user
+      user = await prisma.user.create({
+        data: {
+          id: nanoid(),
+          username,
+          age,
+          sex,
+          country,
+        },
+      });
 
       // Generate JWT with 24-hour expiration
       const token = fastify.jwt.sign({
@@ -37,13 +45,16 @@ export async function authRoutes(fastify: FastifyInstance) {
         user: {
           id: user.id,
           username: user.username,
+          age: user.age,
+          sex: user.sex,
+          country: user.country,
           createdAt: user.createdAt,
         },
       };
     } catch (error: any) {
       console.error('Login error:', error);
       if (error.name === 'ZodError') {
-        reply.code(400).send({ error: 'Invalid username format' });
+        reply.code(400).send({ error: 'Invalid input format', details: error.errors });
       } else {
         reply.code(500).send({ error: 'Internal server error' });
       }
@@ -70,6 +81,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         user: {
           id: user.id,
           username: user.username,
+          age: user.age,
+          sex: user.sex,
+          country: user.country,
           createdAt: user.createdAt,
         },
       };

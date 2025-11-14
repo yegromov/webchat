@@ -2,6 +2,9 @@
 export interface User {
   id: string;
   username: string;
+  age: number;
+  sex: string;
+  country: string;
   createdAt: Date;
 }
 
@@ -99,6 +102,9 @@ export interface AuthTokenPayload {
 
 export interface LoginRequest {
   username: string;
+  age: number;
+  sex: string;
+  country: string;
 }
 
 export interface LoginResponse {
