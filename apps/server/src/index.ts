@@ -6,6 +6,7 @@ import { config } from './config/index.js';
 import { authenticate } from './middleware/auth.js';
 import { authRoutes } from './routes/auth.js';
 import { roomRoutes } from './routes/rooms.js';
+import { dmRoutes } from './routes/dms.js';
 import { websocketRoutes } from './routes/websocket.js';
 import { prisma } from './services/database.js';
 import { redis, redisSub } from './services/redis.js';
@@ -39,6 +40,7 @@ fastify.get('/health', async () => {
 // Register routes
 fastify.register(authRoutes, { prefix: '/api' });
 fastify.register(roomRoutes, { prefix: '/api' });
+fastify.register(dmRoutes, { prefix: '/api' });
 fastify.register(websocketRoutes);
 
 // Graceful shutdown

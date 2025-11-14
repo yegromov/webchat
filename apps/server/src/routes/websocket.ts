@@ -19,14 +19,42 @@ function sanitizeHtml(text: string): string {
 interface AuthenticatedSocket extends WebSocket {
   userId?: string;
   username?: string;
+  age?: number;
+  sex?: string;
   rooms: Set<string>;
 }
 
 export async function websocketRoutes(fastify: FastifyInstance) {
   const clients = new Map<string, AuthenticatedSocket>();
 
+  // Broadcast online users to all connected clients
+  const broadcastOnlineUsers = () => {
+    const onlineUsers = Array.from(clients.values()).map((client) => ({
+      id: client.userId!,
+      username: client.username!,
+      age: client.age!,
+      sex: client.sex!,
+    }));
+
+    const message = JSON.stringify({
+      type: WSMessageType.ONLINE_USERS,
+      payload: { users: onlineUsers },
+    });
+
+    clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  };
+
   // Subscribe to Redis channels
-  redisSub.subscribe(CHANNELS.ROOM_MESSAGE, CHANNELS.USER_JOINED, CHANNELS.USER_LEFT);
+  redisSub.subscribe(
+    CHANNELS.ROOM_MESSAGE,
+    CHANNELS.USER_JOINED,
+    CHANNELS.USER_LEFT,
+    CHANNELS.DIRECT_MESSAGE
+  );
 
   redisSub.on('message', (channel, message) => {
     const data = JSON.parse(message);
@@ -51,6 +79,15 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             client.send(JSON.stringify(wsMessage));
           }
         });
+        break;
+      }
+      case CHANNELS.DIRECT_MESSAGE: {
+        const { receiverId, wsMessage } = data;
+        // Send DM to the receiver
+        const receiverSocket = clients.get(receiverId);
+        if (receiverSocket && receiverSocket.readyState === WebSocket.OPEN) {
+          receiverSocket.send(JSON.stringify(wsMessage));
+        }
         break;
       }
     }
@@ -79,7 +116,22 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       const decoded = fastify.jwt.verify(token) as { userId: string; username: string };
       socket.userId = decoded.userId;
       socket.username = decoded.username;
+
+      // Fetch user profile for online users display
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { age: true, sex: true },
+      });
+
+      if (user) {
+        socket.age = user.age;
+        socket.sex = user.sex;
+      }
+
       clients.set(socket.userId, socket);
+
+      // Broadcast updated online users list
+      broadcastOnlineUsers();
     } catch (error) {
       socket.close(4001, 'Invalid token');
       return;
@@ -278,6 +330,126 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             break;
           }
 
+          case WSMessageType.SEND_DM: {
+            const { receiverId, content } = message.payload;
+
+            // Validate message content
+            if (!content || typeof content !== 'string') {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message content is required' },
+                })
+              );
+              return;
+            }
+
+            const trimmedContent = content.trim();
+            const sanitizedContent = sanitizeHtml(trimmedContent);
+
+            if (trimmedContent.length === 0) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message cannot be empty' },
+                })
+              );
+              return;
+            }
+
+            if (trimmedContent.length > 1000) {
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Message too long (max 1000 characters)' },
+                })
+              );
+              return;
+            }
+
+            try {
+              // Check if sender is blocked by receiver
+              const isBlocked = await prisma.blockedUser.findFirst({
+                where: {
+                  blockerId: receiverId,
+                  blockedId: socket.userId!,
+                },
+              });
+
+              if (isBlocked) {
+                socket.send(
+                  JSON.stringify({
+                    type: WSMessageType.ERROR,
+                    payload: { message: 'Cannot send message to this user' },
+                  })
+                );
+                return;
+              }
+
+              // Save DM to database
+              const dm = await prisma.directMessage.create({
+                data: {
+                  id: nanoid(),
+                  content: sanitizedContent,
+                  senderId: socket.userId!,
+                  receiverId,
+                },
+                include: {
+                  sender: {
+                    select: {
+                      username: true,
+                    },
+                  },
+                  receiver: {
+                    select: {
+                      username: true,
+                    },
+                  },
+                },
+              });
+
+              const dmPayload = {
+                id: dm.id,
+                content: dm.content,
+                senderId: dm.senderId,
+                senderUsername: dm.sender.username,
+                receiverId: dm.receiverId,
+                receiverUsername: dm.receiver.username,
+                createdAt: dm.createdAt,
+                read: dm.read,
+              };
+
+              // Send to receiver via Redis
+              await redis.publish(
+                CHANNELS.DIRECT_MESSAGE,
+                JSON.stringify({
+                  receiverId,
+                  wsMessage: {
+                    type: WSMessageType.DM_RECEIVED,
+                    payload: { message: dmPayload },
+                  },
+                })
+              );
+
+              // Send confirmation to sender
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.DM_RECEIVED,
+                  payload: { message: dmPayload },
+                })
+              );
+            } catch (error) {
+              console.error('Error sending DM:', error);
+              socket.send(
+                JSON.stringify({
+                  type: WSMessageType.ERROR,
+                  payload: { message: 'Failed to send message' },
+                })
+              );
+            }
+            break;
+          }
+
           // Future WebRTC signaling handlers
           case WSMessageType.WEBRTC_OFFER:
           case WSMessageType.WEBRTC_ANSWER:
@@ -326,6 +498,9 @@ export async function websocketRoutes(fastify: FastifyInstance) {
           );
         }
         clients.delete(socket.userId);
+
+        // Broadcast updated online users list
+        broadcastOnlineUsers();
       }
     });
   });

@@ -1,13 +1,30 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const api = {
-  async login(username: string) {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
+  async checkUsername(username: string) {
+    const response = await fetch(`${API_URL}/api/auth/check-username`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ username }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to check username');
+    }
+
+    return response.json();
+  },
+
+  async login(username: string, age: number, sex: string, country: string, password?: string) {
+    const response = await fetch(`${API_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username, age, sex, country, password }),
     });
 
     if (!response.ok) {
@@ -76,6 +93,78 @@ export const api = {
 
     if (!response.ok) {
       throw new Error('Failed to fetch messages');
+    }
+
+    return response.json();
+  },
+
+  async getDMs(token: string) {
+    const response = await fetch(`${API_URL}/api/dms`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch DMs');
+    }
+
+    return response.json();
+  },
+
+  async getDMConversation(token: string, userId: string) {
+    const response = await fetch(`${API_URL}/api/dms/${userId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch DM conversation');
+    }
+
+    return response.json();
+  },
+
+  async blockUser(token: string, userId: string) {
+    const response = await fetch(`${API_URL}/api/users/${userId}/block`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to block user');
+    }
+
+    return response.json();
+  },
+
+  async unblockUser(token: string, userId: string) {
+    const response = await fetch(`${API_URL}/api/users/${userId}/block`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to unblock user');
+    }
+
+    return response.json();
+  },
+
+  async getBlockedUsers(token: string) {
+    const response = await fetch(`${API_URL}/api/blocked-users`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch blocked users');
     }
 
     return response.json();

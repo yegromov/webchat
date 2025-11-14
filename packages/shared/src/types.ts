@@ -2,6 +2,9 @@
 export interface User {
   id: string;
   username: string;
+  age: number;
+  sex: string;
+  country: string;
   createdAt: Date;
 }
 
@@ -25,6 +28,25 @@ export interface CreateMessageDto {
   roomId: string;
 }
 
+// Direct Message types
+export interface DirectMessage {
+  id: string;
+  content: string;
+  senderId: string;
+  senderUsername: string;
+  receiverId: string;
+  receiverUsername: string;
+  createdAt: Date;
+  read: boolean;
+}
+
+export interface OnlineUser {
+  id: string;
+  username: string;
+  age: number;
+  sex: string;
+}
+
 // Room types
 export interface Room {
   id: string;
@@ -41,6 +63,9 @@ export enum WSMessageType {
   USER_JOINED = 'USER_JOINED',
   USER_LEFT = 'USER_LEFT',
   ROOM_USERS = 'ROOM_USERS',
+  SEND_DM = 'SEND_DM',
+  DM_RECEIVED = 'DM_RECEIVED',
+  ONLINE_USERS = 'ONLINE_USERS',
   ERROR = 'ERROR',
   // Future WebRTC support
   WEBRTC_OFFER = 'WEBRTC_OFFER',
@@ -87,6 +112,19 @@ export interface RoomUsersPayload {
   users: Array<{ id: string; username: string }>;
 }
 
+export interface SendDMPayload {
+  receiverId: string;
+  content: string;
+}
+
+export interface DMReceivedPayload {
+  message: DirectMessage;
+}
+
+export interface OnlineUsersPayload {
+  users: OnlineUser[];
+}
+
 export interface ErrorPayload {
   message: string;
 }
@@ -97,8 +135,21 @@ export interface AuthTokenPayload {
   username: string;
 }
 
+export interface CheckUsernameRequest {
+  username: string;
+}
+
+export interface CheckUsernameResponse {
+  available: boolean;
+  registered?: boolean; // Only present if available is false
+}
+
 export interface LoginRequest {
   username: string;
+  age: number;
+  sex: string;
+  country: string;
+  password?: string; // Optional for registration or required for existing registered users
 }
 
 export interface LoginResponse {
